@@ -55,8 +55,9 @@ test: ## Run all tests
 ## Clean: Remove binaries and temporary files
 clean: ## Remove build artifacts
 	rm -rf bin/
-	find . -name ".DS_Store" -delete
 
 ## Run: Run agent locally
 run-agent: build ## Build and run agent locally
-	./bin/$(BINARY_NAME) --url 'amqp://guest:guest@localhost:5672/' --interval 2
+	@URL=$$(grep RABBIT_URL .env | cut -d '=' -f2 | sed 's/rabbitmq/localhost/') && \
+	if [ -z "$$URL" ]; then URL="amqp://guest:guest@localhost:5672/"; fi && \
+	./bin/$(BINARY_NAME) --url "$$URL" --interval 2

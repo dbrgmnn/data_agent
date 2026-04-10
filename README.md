@@ -2,30 +2,38 @@
 
 Lightweight system metrics collector (CPU, RAM, Disk, Network) with RabbitMQ, PostgreSQL, and gRPC API.
 
-## 🚀 Quick Start
+## Quick Start
 
 1. **Configure**: `cp .env.example .env` (edit if needed).
 2. **Infrastructure**: `make up` (starts DB, RabbitMQ, API, Ingestor).
 3. **Agent**: `make run-agent` (starts collecting metrics).
 
-## 🛠 Development
+## Development
 
-All tasks are managed via `Makefile`:
+All tasks are managed via Makefile:
 
 - `make install-deps` — Install gRPC plugins.
-- `make gen`          — Regenerate gRPC code from `.proto`.
+- `make gen`          — Regenerate gRPC code from .proto.
+- `make build`        — Build the agent binary.
 - `make test`         — Run all tests.
-- `make clean`        — Remove binaries and garbage.
+- `make clean`        — Remove build artifacts.
 
-## 📡 gRPC API
+## Raspberry Pi Deployment
 
-- **HostService**: `ListHosts`, `GetHost`
-- **MetricService**: `ListMetrics`, `GetLatestMetrics` (returns structured data).
+To run the agent on a Raspberry Pi Zero 2W, cross-compile for ARM64:
+```bash
+GOOS=linux GOARCH=arm64 go build -o agent_pi cmd/agent/main.go
+```
 
-Example using `grpcurl`:
+## gRPC API
+
+- **HostService**: ListHosts, GetHost
+- **MetricService**: ListMetrics, GetLatestMetrics (structured data).
+
+Example using grpcurl:
 ```bash
 grpcurl -plaintext localhost:50051 data_agent.MetricService/ListMetrics
 ```
 
 ## License
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
