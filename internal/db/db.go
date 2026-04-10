@@ -9,10 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+// cache for host IDs to avoid redundant database lookups
+var hostCache sync.Map
 
 // initialize and return database connection
 func InitDB() (*sql.DB, error) {
@@ -49,8 +53,15 @@ func InitDB() (*sql.DB, error) {
 
 // insert host and metric into database
 func SaveMetric(ctx context.Context, db *sql.DB, metric *models.MetricMessage) error {
+	var hostID int64
+
+	// check cache first
+	if id, ok := hostCache.Load(metric.Host.Hostname); ok {
+		hostID = id.(int64)
+	}
+
 	// transactions for secure queries
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
@@ -62,27 +73,30 @@ func SaveMetric(ctx context.Context, db *sql.DB, metric *models.MetricMessage) e
 		}
 	}()
 
-	var hostID int64
-	// check if host exists in database
-	err = tx.QueryRowContext(ctx, "SELECT id FROM hosts WHERE hostname=$1", metric.Host.Hostname).Scan(&hostID)
-	if errors.Is(err, sql.ErrNoRows) {
-		// insert host into database when not exists
-		err = tx.QueryRowContext(
-			ctx,
-			`INSERT INTO hosts (hostname, os, platform, platform_ver, kernel_ver) 
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING id`,
-			metric.Host.Hostname,
-			metric.Host.OS,
-			metric.Host.Platform,
-			metric.Host.PlatformVer,
-			metric.Host.KernelVer,
-		).Scan(&hostID)
-		if err != nil {
-			return fmt.Errorf("insert host info: %w", err)
+	if hostID == 0 {
+		// check if host exists in database
+		err = tx.QueryRowContext(ctx, "SELECT id FROM hosts WHERE hostname=$1", metric.Host.Hostname).Scan(&hostID)
+		if errors.Is(err, sql.ErrNoRows) {
+			// insert host into database when not exists
+			err = tx.QueryRowContext(
+				ctx,
+				`INSERT INTO hosts (hostname, os, platform, platform_ver, kernel_ver) 
+				VALUES ($1, $2, $3, $4, $5)
+				RETURNING id`,
+				metric.Host.Hostname,
+				metric.Host.OS,
+				metric.Host.Platform,
+				metric.Host.PlatformVer,
+				metric.Host.KernelVer,
+			).Scan(&hostID)
+			if err != nil {
+				return fmt.Errorf("insert host info: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("select host_id: %w", err)
 		}
-	} else if err != nil {
-		return fmt.Errorf("select host_id: %w", err)
+		// update cache
+		hostCache.Store(metric.Host.Hostname, hostID)
 	}
 
 	// set host_id in metric

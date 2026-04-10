@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package data_agent;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "/proto;proto";
 
 message Empty {}
@@ -19,15 +21,35 @@ message HostList {
     repeated Host hosts = 1;
 }
 
+message DiskMetric {
+    string path = 1;
+    uint64 total = 2;
+    uint64 used = 3;
+    uint64 free = 4;
+    double used_percent = 5;
+}
+
+message NetMetric {
+    string name = 1;
+    uint64 bytes_sent = 2;
+    uint64 bytes_recv = 3;
+    uint64 packets_sent = 4;
+    uint64 packets_recv = 5;
+    uint64 err_in = 6;
+    uint64 err_out = 7;
+    uint64 drop_in = 8;
+    uint64 drop_out = 9;
+}
+
 message Metric {
     int64 id = 1;
     int64 host_id = 2;
-    double uptime = 3;
+    uint64 uptime = 3;
     double cpu = 4;
     double ram = 5;
-    string disk = 6;
-    string network = 7;
-    string time = 8;
+    repeated DiskMetric disk = 6;
+    repeated NetMetric network = 7;
+    google.protobuf.Timestamp time = 8;
 }
 
 message MetricList {
