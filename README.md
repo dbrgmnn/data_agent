@@ -18,13 +18,6 @@ All tasks are managed via Makefile:
 - `make test`         — Run all tests.
 - `make clean`        — Remove build artifacts.
 
-## Raspberry Pi Deployment
-
-To run the agent on a Raspberry Pi Zero 2W, cross-compile for ARM64:
-```bash
-GOOS=linux GOARCH=arm64 go build -o agent_pi cmd/agent/main.go
-```
-
 ## gRPC API
 
 - **HostService**: ListHosts, GetHost
