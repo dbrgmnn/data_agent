@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -47,7 +47,7 @@ func InitDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("connect to the database: %w", err)
 	}
 
-	log.Println("Successfully connected to the database")
+	slog.Info("Successfully connected to the database", "host", cfg.DBHost, "dbname", cfg.DBName)
 	return db, nil
 }
 
@@ -69,7 +69,7 @@ func SaveMetric(ctx context.Context, db *sql.DB, metric *models.MetricMessage) e
 	// rollback will be executed if something goes wrong
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("transaction rollback error: %v", err)
+			slog.Error("Transaction rollback error", "error", err)
 		}
 	}()
 
@@ -92,6 +92,7 @@ func SaveMetric(ctx context.Context, db *sql.DB, metric *models.MetricMessage) e
 			if err != nil {
 				return fmt.Errorf("insert host info: %w", err)
 			}
+			slog.Info("New host registered", "hostname", metric.Host.Hostname, "id", hostID)
 		} else if err != nil {
 			return fmt.Errorf("select host_id: %w", err)
 		}

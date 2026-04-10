@@ -6,7 +6,7 @@ import (
 	"data_agent/internal/queue"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"time"
 )
@@ -24,11 +24,11 @@ func Run(ctx context.Context, rabbitURL string, interval time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Agent stopped")
+			slog.Info("Agent stopped")
 			return
 		case <-ticker.C:
 			if err := collectAndSend(publisher); err != nil {
-				log.Println("Failed to send metrics:", err)
+				slog.Error("Failed to collect and send metrics", "error", err)
 			}
 		}
 	}

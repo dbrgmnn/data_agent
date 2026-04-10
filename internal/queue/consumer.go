@@ -7,7 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -75,14 +75,14 @@ func (c *Consumer) ConsumeMetrics() error {
 
 		case d, ok := <-msgs:
 			if !ok {
-				log.Println("Message channel closed")
+				slog.Info("Message channel closed")
 				return nil
 			}
 
 			// decode message
 			var metric models.MetricMessage
 			if err := json.Unmarshal(d.Body, &metric); err != nil {
-				log.Println("Failed to decode metric:", err)
+				slog.Error("Failed to decode metric", "error", err)
 				// don't send to queue
 				d.Nack(false, false)
 				continue
@@ -90,7 +90,7 @@ func (c *Consumer) ConsumeMetrics() error {
 
 			// send metric to database
 			if err := dataBase.SaveMetric(c.Ctx, c.Db, &metric); err != nil {
-				log.Println("Failed to save metric:", err)
+				slog.Error("Failed to save metric", "error", err, "host", metric.Host.Hostname)
 				// send to queue again
 				d.Nack(false, true)
 				continue
@@ -98,7 +98,7 @@ func (c *Consumer) ConsumeMetrics() error {
 
 			// acknowledge message
 			d.Ack(false)
-			log.Printf("Metric saved from queue: host=%s", metric.Host.Hostname)
+			slog.Info("Metric saved from queue", "host", metric.Host.Hostname)
 		}
 	}
 }
@@ -107,19 +107,19 @@ func (c *Consumer) ConsumeMetrics() error {
 func (c *Consumer) StartMetricsConsumer() {
 	for {
 		if err := c.connect(); err != nil {
-			log.Println("Consumer connection failed, retrying in 5s:", err)
+			slog.Error("Consumer connection failed, retrying in 5s", "error", err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		log.Println("Connected to RabbitMQ")
+		slog.Info("Connected to RabbitMQ")
 		if err := c.ConsumeMetrics(); err != nil {
-			log.Println("Consume error, reconnecting:", err)
+			slog.Warn("Consume error, reconnecting", "error", err)
 		}
 
 		select {
 		case <-c.Ctx.Done():
-			log.Println("Consumer stopped by context")
+			slog.Info("Consumer stopped by context")
 			c.Close()
 			return
 		case <-time.After(5 * time.Second):
@@ -131,15 +131,15 @@ func (c *Consumer) StartMetricsConsumer() {
 func (c *Consumer) Close() {
 	if c.Ch != nil {
 		if err := c.Ch.Close(); err != nil {
-			log.Println("Error closing channel:", err)
+			slog.Error("Error closing channel", "error", err)
 		}
 		c.Ch = nil
 	}
 	if c.Conn != nil {
 		if err := c.Conn.Close(); err != nil {
-			log.Println("Error closing connection:", err)
+			slog.Error("Error closing connection", "error", err)
 		}
 		c.Conn = nil
 	}
-	log.Println("Consumer connection closed")
+	slog.Info("Consumer connection closed")
 }

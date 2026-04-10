@@ -5,7 +5,7 @@ import (
 	"data_agent/internal/models"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -65,7 +65,7 @@ func (p *Publisher) connect() error {
 	p.Conn = conn
 	p.Ch = ch
 	p.Q = q
-	log.Println("Publisher connected and queue declared:", q.Name)
+	slog.Info("Publisher connected and queue declared", "queue", q.Name)
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (p *Publisher) Publish(metricMsg *models.MetricMessage) error {
 		return fmt.Errorf("failed to publish metric: %w", err)
 	}
 
-	log.Printf("Metric sent to queue: host=%s", metricMsg.Host.Hostname)
+	slog.Info("Metric sent to queue", "host", metricMsg.Host.Hostname)
 	return nil
 }
 
@@ -106,10 +106,10 @@ func (p *Publisher) Publish(metricMsg *models.MetricMessage) error {
 func (p *Publisher) StartMetricsPublisher() {
 	for {
 		if err := p.connect(); err != nil {
-			log.Println("Publisher connection failed, retrying:", err)
+			slog.Error("Publisher connection failed, retrying", "error", err)
 			select {
 			case <-p.Ctx.Done():
-				log.Println("Publisher stopped by context")
+				slog.Info("Publisher stopped by context")
 				return
 			case <-time.After(5 * time.Second):
 				continue
@@ -123,12 +123,12 @@ func (p *Publisher) StartMetricsPublisher() {
 
 		select {
 		case <-p.Ctx.Done():
-			log.Println("Publisher stopping...")
+			slog.Info("Publisher stopping")
 			p.Close()
 			return
 		case err := <-notifyClose:
 			if err != nil {
-				log.Println("Publisher connection closed, reconnecting:", err)
+				slog.Error("Publisher connection closed, reconnecting", "error", err)
 			}
 		}
 	}
@@ -137,19 +137,18 @@ func (p *Publisher) StartMetricsPublisher() {
 // close channel and connection gracefully
 func (p *Publisher) Close() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.Ch != nil {
-		if err := p.Ch.Close(); err != nil {
-			log.Println("Error closing channel:", err)
+	if c := p.Ch; c != nil {
+		if err := c.Close(); err != nil {
+			slog.Error("Error closing channel", "error", err)
 		}
 		p.Ch = nil
 	}
-	if p.Conn != nil && !p.Conn.IsClosed() {
-		if err := p.Conn.Close(); err != nil {
-			log.Println("Error closing connection:", err)
+	if conn := p.Conn; conn != nil && !conn.IsClosed() {
+		if err := conn.Close(); err != nil {
+			slog.Error("Error closing connection", "error", err)
 		}
+		p.Conn = nil
 	}
-	p.Conn = nil
-	log.Println("Publisher connection closed")
+	p.mu.Unlock()
+	slog.Info("Publisher connection closed")
 }

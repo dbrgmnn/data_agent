@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"data_agent/internal/agent"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,9 +11,9 @@ import (
 
 // main function to run the agent
 func main() {
-	// add prefix for logs
-	log.SetPrefix("[agent] ")
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// initialize structured logger
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	// create a context that is canceled on exit
 	ctx, cancel := context.WithCancel(context.Background())
@@ -24,14 +24,15 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-stop
-		log.Println("Stopping agent...")
+		slog.Info("Stopping agent...")
 		cancel()
 	}()
 
 	// parse flags and run the agent
 	url, interval, err := agent.ParseFlags()
 	if err != nil {
-		log.Fatalf("Fatal to parse flags: %v", err)
+		slog.Error("Failed to parse flags", "error", err)
+		os.Exit(1)
 	}
 	agent.Run(ctx, url, interval)
 }

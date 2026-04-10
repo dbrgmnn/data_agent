@@ -5,7 +5,7 @@ import (
 	dataBase "data_agent/internal/db"
 	"data_agent/internal/grpcserver"
 	"data_agent/proto"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -17,14 +17,15 @@ import (
 
 // main function to start the gRPC server
 func main() {
-	// add prefix for logs
-	log.SetPrefix("[api] ")
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// initialize structured logger
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	// initialize database
 	db, err := dataBase.InitDB()
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -35,7 +36,8 @@ func main() {
 	// start gRPC server
 	lis, err := net.Listen("tcp", grpcPort)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		slog.Error("Failed to listen", "port", grpcPort, "error", err)
+		os.Exit(1)
 	}
 
 	grpcServer := grpc.NewServer()
@@ -44,9 +46,10 @@ func main() {
 	reflection.Register(grpcServer)
 
 	go func() {
-		log.Printf("gRPC server started on %s", grpcPort)
+		slog.Info("gRPC server started", "port", grpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Failed to serve gRPC server: %v", err)
+			slog.Error("Failed to serve gRPC server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -56,6 +59,6 @@ func main() {
 
 	// wait for termination signal
 	<-stop
-	log.Println("Stopping gRPC server...")
+	slog.Info("Stopping gRPC server...")
 	grpcServer.GracefulStop()
 }

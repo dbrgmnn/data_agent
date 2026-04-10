@@ -5,7 +5,7 @@ import (
 	"data_agent/internal/config"
 	dataBase "data_agent/internal/db"
 	"data_agent/internal/queue"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,14 +13,15 @@ import (
 
 // main function to start the RabbitMQ consumer
 func main() {
-	// add prefix for logs
-	log.SetPrefix("[ingestor] ")
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// initialize structured logger
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	// initialize database
 	db, err := dataBase.InitDB()
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -37,7 +38,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-stop
-		log.Println("Stopping ingestor...")
+		slog.Info("Stopping ingestor...")
 		cancel()
 	}()
 
